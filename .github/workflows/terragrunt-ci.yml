@@ -1,0 +1,75 @@
+name: Terragrunt CI with Firefly
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  terragrunt-plan:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+          terraform_wrapper: false
+
+      - name: Setup Terragrunt
+        run: |
+          sudo wget -q -O /usr/local/bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.68.0/terragrunt_linux_amd64
+          sudo chmod +x /usr/local/bin/terragrunt
+          terragrunt --version
+
+      - name: Setup IAC Wrapper
+        uses: gofireflyio/fireflyci/terragrunt@infl-16195-terragrunt-wrapper
+
+      - name: Terragrunt Init and Plan
+        run: |
+          terragrunt run-all init
+          terragrunt run-all plan
+
+      - name: Firefly Post Plan - Database
+        uses: gofireflyio/fireflyci@infl-16195-terragrunt-wrapper
+        with:
+          command: post-plan
+          environment: database
+          terragrunt-version: 0.68.0
+          init-log-file: database/init_log.jsonl
+          plan-output-file: database/plan_output.json
+          plan-json-log-file: database/plan_log.jsonl
+          plan-raw-log-file: database/plan_output_raw.log
+
+        env:
+          FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
+
+      - name: Firefly Post Plan - Generator
+        uses: gofireflyio/fireflyci@infl-16195-terragrunt-wrapper
+        with:
+          command: post-plan
+          environment: generator
+          terragrunt-version: 0.68.0
+          init-log-file: generator/init_log.jsonl
+          plan-output-file: generator/plan_output.json
+          plan-json-log-file: generator/plan_log.jsonl
+          plan-raw-log-file: generator/plan_output_raw.log
+        env:
+          FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
+
+      - name: Firefly Post Plan - VPC
+        uses: gofireflyio/fireflyci@infl-16195-terragrunt-wrapper
+        with:
+          command: post-plan
+          environment: vpc
+          terragrunt-version: 0.68.0
+          init-log-file: vpc/init_log.jsonl
+          plan-output-file: vpc/plan_output.json
+          plan-json-log-file: vpc/plan_log.jsonl
+          plan-raw-log-file: vpc/plan_output_raw.log
+        env:
+          FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
+
