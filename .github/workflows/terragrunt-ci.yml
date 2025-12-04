@@ -4,14 +4,17 @@ on:
   push:
     branches:
       - '**'
+  workflow_dispatch:
+
+env:
+  TERRAGRUNT_VERSION: "0.68.0"
+  TERRAFORM_VERSION: "1.9.0"
 
 jobs:
   terragrunt-plan:
     runs-on: ubuntu-latest
     
     env:
-      TERRAGRUNT_VERSION: "0.68.0"
-      TERRAFORM_VERSION: "1.9.0"
       PLAN_FILE_NAME: "tf.plan"
       WORKSPACE: ${{ github.repository}}
       INIT_LOG_FILE: "init_log.jsonl"
@@ -88,4 +91,71 @@ jobs:
         env:
           FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
+  terragrunt-apply:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    needs: terragrunt-plan
+    
+    env:
+      WORKSPACE: ${{ github.repository}}
+      APPLY_LOG_FILE: "apply_log.jsonl"
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Setup Terragrunt
+        run: |
+          sudo wget -q -O /usr/local/bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64
+          sudo chmod +x /usr/local/bin/terragrunt
+          terragrunt --version
+
+      - name: Setup IAC Wrapper
+        uses: gofireflyio/fireflyci/terragrunt@infl-16195-terragrunt-wrapper
+
+      - name: Terragrunt Apply
+        run: |
+          terragrunt -non-interactive run-all apply -- -auto-approve -json
+
+      - name: Firefly Post Plan - Database
+        uses: gofireflyio/fireflyci@infl-16195-terragrunt-wrapper
+        with:
+          command: post-apply
+          environment: database
+          workspace: ${{ env.WORKSPACE }}
+          terragrunt-version: ${{ env.TERRAGRUNT_VERSION }}
+          apply-log-file: database/${{ env.APPLY_LOG_FILE }}
+
+        env:
+          FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
+          FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
+
+      - name: Firefly Post Plan - Generator
+        uses: gofireflyio/fireflyci@infl-16195-terragrunt-wrapper
+        with:
+          command: post-plan
+          environment: generator
+          terragrunt-version: ${{ env.TERRAGRUNT_VERSION }}
+          workspace: ${{ env.WORKSPACE }}
+          apply-log-file: generator/${{ env.APPLY_LOG_FILE }}
+        env:
+          FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
+          FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
+
+      - name: Firefly Post Plan - VPC
+        uses: gofireflyio/fireflyci@infl-16195-terragrunt-wrapper
+        with:
+          command: post-plan
+          environment: vpc
+          terragrunt-version: ${{ env.TERRAGRUNT_VERSION }}
+          workspace: ${{ env.WORKSPACE }}
+          apply-log-file: vpc/${{ env.APPLY_LOG_FILE }}
+        env:
+          FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
+          FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
