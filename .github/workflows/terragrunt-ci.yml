@@ -93,7 +93,6 @@ jobs:
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
   terragrunt-apply:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
     needs: terragrunt-plan
     
     env:
