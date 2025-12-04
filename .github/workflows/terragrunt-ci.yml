@@ -46,6 +46,7 @@ jobs:
 
         env:
           FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
+          FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
       - name: Firefly Post Plan - Generator
         uses: gofireflyio/fireflyci@infl-16195-terragrunt-wrapper
@@ -59,6 +60,7 @@ jobs:
           plan-raw-log-file: generator/plan_output_raw.log
         env:
           FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
+          FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
       - name: Firefly Post Plan - VPC
         uses: gofireflyio/fireflyci@infl-16195-terragrunt-wrapper
@@ -72,4 +74,5 @@ jobs:
           plan-raw-log-file: vpc/plan_output_raw.log
         env:
           FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
+          FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
