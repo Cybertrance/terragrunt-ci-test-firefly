@@ -77,7 +77,7 @@ jobs:
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
       - name: Firefly Post Plan - Generator
-        uses: gofireflyio/fireflyci@v0.5.154
+        uses: gofireflyio/fireflyci@v0.5.153
         with:
           command: post-plan
           environment: generator
@@ -92,7 +92,7 @@ jobs:
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
       - name: Firefly Post Plan - VPC
-        uses: gofireflyio/fireflyci@v0.5.154
+        uses: gofireflyio/fireflyci@v0.5.153
         with:
           command: post-plan
           environment: vpc
@@ -111,7 +111,7 @@ jobs:
         run: terragrunt run-all apply --terragrunt-non-interactive -- -auto-approve -json
 
       - name: Firefly Post Plan - Database
-        uses: gofireflyio/fireflyci@v0.5.154
+        uses: gofireflyio/fireflyci@v0.5.153
         with:
           command: post-apply
           environment: database
@@ -123,7 +123,7 @@ jobs:
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
       - name: Firefly Post Plan - Generator
-        uses: gofireflyio/fireflyci@v0.5.154
+        uses: gofireflyio/fireflyci@v0.5.153
         with:
           command: post-apply
           environment: generator
@@ -135,7 +135,7 @@ jobs:
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
       - name: Firefly Post Plan - VPC
-        uses: gofireflyio/fireflyci@v0.5.154
+        uses: gofireflyio/fireflyci@v0.5.153
         with:
           command: post-apply
           environment: vpc
