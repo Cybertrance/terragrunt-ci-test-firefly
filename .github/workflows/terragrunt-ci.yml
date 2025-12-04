@@ -107,10 +107,12 @@ jobs:
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
       - name: Terragrunt Apply
+        id: apply
         if: inputs.should_apply == true && steps.plan.outcome == 'success'
         run: terragrunt run-all apply --terragrunt-non-interactive -- -auto-approve -json
 
-      - name: Firefly Post Plan - Database
+      - name: Firefly Post Apply - Database
+        if: inputs.should_apply == true && steps.apply.outcome == 'success'
         uses: gofireflyio/fireflyci@v0.5.153
         with:
           command: post-apply
@@ -122,7 +124,8 @@ jobs:
           FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
-      - name: Firefly Post Plan - Generator
+      - name: Firefly Post Apply - Generator
+        if: inputs.should_apply == true && steps.apply.outcome == 'success'
         uses: gofireflyio/fireflyci@v0.5.153
         with:
           command: post-apply
@@ -134,7 +137,8 @@ jobs:
           FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
-      - name: Firefly Post Plan - VPC
+      - name: Firefly Post Apply - VPC
+        if: inputs.should_apply == true && steps.apply.outcome == 'success'
         uses: gofireflyio/fireflyci@v0.5.153
         with:
           command: post-apply
