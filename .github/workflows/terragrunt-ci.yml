@@ -120,7 +120,7 @@ jobs:
 
       - name: Terragrunt Apply
         run: |
-          terragrunt -non-interactive run-all apply -- -auto-approve -json
+          terragrunt --non-interactive run-all apply -- -auto-approve -json
 
       - name: Firefly Post Plan - Database
         uses: gofireflyio/fireflyci@infl-16195-terragrunt-wrapper
