@@ -12,6 +12,7 @@ jobs:
     env:
       TERRAGRUNT_VERSION: "0.68.0"
       TERRAFORM_VERSION: "1.9.0"
+      PLAN_FILE_NAME: "tf.plan"
     
     steps:
       - name: Checkout code
@@ -35,7 +36,7 @@ jobs:
       - name: Terragrunt Init and Plan
         run: |
           terragrunt run-all init
-          terragrunt run-all plan
+          terragrunt run-all plan -- -json -out=${{ env.PLAN_FILE_NAME }}
 
       - name: Firefly Post Plan - Database
         uses: gofireflyio/fireflyci@infl-16195-terragrunt-wrapper
