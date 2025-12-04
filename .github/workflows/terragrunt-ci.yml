@@ -13,6 +13,11 @@ jobs:
       TERRAGRUNT_VERSION: "0.68.0"
       TERRAFORM_VERSION: "1.9.0"
       PLAN_FILE_NAME: "tf.plan"
+      WORKSPACE: ${{ github.repository}}
+      INIT_LOG_FILE: "init_log.jsonl"
+      PLAN_OUTPUT_FILE: "plan_output.json"
+      PLAN_JSON_LOG_FILE: "plan_log.jsonl"
+      PLAN_RAW_LOG_FILE: "plan_output_raw.log"
     
     steps:
       - name: Checkout code
@@ -43,12 +48,12 @@ jobs:
         with:
           command: post-plan
           environment: database
-          workspace: ${{ github.repository}}
+          workspace: ${{ env.WORKSPACE }}
           terragrunt-version: ${{ env.TERRAGRUNT_VERSION }}
-          init-log-file: database/init_log.jsonl
-          plan-output-file: database/plan_output.json
-          plan-json-log-file: database/plan_log.jsonl
-          plan-raw-log-file: database/plan_output_raw.log
+          init-log-file: database/${{ env.INIT_LOG_FILE }}
+          plan-output-file: database/${{ env.PLAN_OUTPUT_FILE }}
+          plan-json-log-file: database/${{ env.PLAN_JSON_LOG_FILE }}
+          plan-raw-log-file: database/${{ env.PLAN_RAW_LOG_FILE }}
 
         env:
           FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
@@ -60,11 +65,11 @@ jobs:
           command: post-plan
           environment: generator
           terragrunt-version: ${{ env.TERRAGRUNT_VERSION }}
-          init-log-file: generator/init_log.jsonl
-          workspace: ${{ github.repository}}
-          plan-output-file: generator/plan_output.json
-          plan-json-log-file: generator/plan_log.jsonl
-          plan-raw-log-file: generator/plan_output_raw.log
+          workspace: ${{ env.WORKSPACE }}
+          init-log-file: generator/${{ env.INIT_LOG_FILE }}
+          plan-output-file: generator/${{ env.PLAN_OUTPUT_FILE }}
+          plan-json-log-file: generator/${{ env.PLAN_JSON_LOG_FILE }}
+          plan-raw-log-file: generator/${{ env.PLAN_RAW_LOG_FILE }}
         env:
           FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
@@ -75,11 +80,11 @@ jobs:
           command: post-plan
           environment: vpc
           terragrunt-version: ${{ env.TERRAGRUNT_VERSION }}
-          init-log-file: vpc/init_log.jsonl
-          workspace: ${{ github.repository}}
-          plan-output-file: vpc/plan_output.json
-          plan-json-log-file: vpc/plan_log.jsonl
-          plan-raw-log-file: vpc/plan_output_raw.log
+          workspace: ${{ env.WORKSPACE }}
+          init-log-file: vpc/${{ env.INIT_LOG_FILE }}
+          plan-output-file: vpc/${{ env.PLAN_OUTPUT_FILE }}
+          plan-json-log-file: vpc/${{ env.PLAN_JSON_LOG_FILE }}
+          plan-raw-log-file: vpc/${{ env.PLAN_RAW_LOG_FILE }}
         env:
           FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
