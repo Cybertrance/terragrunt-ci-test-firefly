@@ -1,14 +1,30 @@
-name: Terragrunt CI with Firefly
+name: Reusable Terragrunt Workflow with Firefly
 
 on:
-  push:
-    branches:
-      - '**'
-  workflow_dispatch:
+    workflow_call:
+      inputs:
+        terragrunt_version:
+          required: false
+          type: string
+          default: '0.68.0'
+          description: 'Terragrunt version to use'
+        terraform_version:
+          required: false
+          type: string
+          default: '1.8.1'
+          description: 'Terraform version to use'
+        should_apply:
+          required: false
+          type: boolean
+          default: false
+          description: 'Whether to apply the Terraform changes'
+        
+      secrets:
+        FIREFLY_ACCESS_KEY:
+          required: true
+        FIREFLY_SECRET_KEY:
+          required: true
 
-env:
-  TERRAGRUNT_VERSION: "0.68.0"
-  TERRAFORM_VERSION: "1.9.0"
 
 jobs:
   terragrunt-plan:
@@ -21,172 +37,118 @@ jobs:
       PLAN_OUTPUT_FILE: "plan_output.json"
       PLAN_JSON_LOG_FILE: "plan_log.jsonl"
       PLAN_RAW_LOG_FILE: "plan_output_raw.log"
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-          terraform_wrapper: false
-
-      - name: Setup Terragrunt
-        run: |
-          sudo wget -q -O /usr/local/bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64
-          sudo chmod +x /usr/local/bin/terragrunt
-          terragrunt --version
-
-      - name: Setup IAC Wrapper
-        uses: gofireflyio/fireflyci/terragrunt@v0.5.154
-
-      - name: Terragrunt Init and Plan
-        run: |
-          terragrunt run-all init
-          terragrunt run-all plan -- -json -out=${{ env.PLAN_FILE_NAME }}
-
-      - name: Firefly Post Plan - Database
-        uses: gofireflyio/fireflyci@v0.5.154
-        with:
-          command: post-plan
-          environment: database
-          workspace: ${{ env.WORKSPACE }}
-          terragrunt-version: ${{ env.TERRAGRUNT_VERSION }}
-          init-log-file: database/${{ env.INIT_LOG_FILE }}
-          plan-output-file: database/${{ env.PLAN_OUTPUT_FILE }}
-          plan-json-log-file: database/${{ env.PLAN_JSON_LOG_FILE }}
-          plan-raw-log-file: database/${{ env.PLAN_RAW_LOG_FILE }}
-
-        env:
-          FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
-          FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
-
-      - name: Firefly Post Plan - Generator
-        uses: gofireflyio/fireflyci@v0.5.154
-        with:
-          command: post-plan
-          environment: generator
-          terragrunt-version: ${{ env.TERRAGRUNT_VERSION }}
-          workspace: ${{ env.WORKSPACE }}
-          init-log-file: generator/${{ env.INIT_LOG_FILE }}
-          plan-output-file: generator/${{ env.PLAN_OUTPUT_FILE }}
-          plan-json-log-file: generator/${{ env.PLAN_JSON_LOG_FILE }}
-          plan-raw-log-file: generator/${{ env.PLAN_RAW_LOG_FILE }}
-        env:
-          FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
-          FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
-
-      - name: Firefly Post Plan - VPC
-        uses: gofireflyio/fireflyci@v0.5.154
-        with:
-          command: post-plan
-          environment: vpc
-          terragrunt-version: ${{ env.TERRAGRUNT_VERSION }}
-          workspace: ${{ env.WORKSPACE }}
-          init-log-file: vpc/${{ env.INIT_LOG_FILE }}
-          plan-output-file: vpc/${{ env.PLAN_OUTPUT_FILE }}
-          plan-json-log-file: vpc/${{ env.PLAN_JSON_LOG_FILE }}
-          plan-raw-log-file: vpc/${{ env.PLAN_RAW_LOG_FILE }}
-        env:
-          FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
-          FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
-
-      - name: Upload Terragrunt Plan Logs
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: terragrunt-plan-logs
-          path: |
-            database/${{ env.INIT_LOG_FILE }}
-            database/${{ env.PLAN_OUTPUT_FILE }}
-            database/${{ env.PLAN_JSON_LOG_FILE }}
-            database/${{ env.PLAN_RAW_LOG_FILE }}
-            generator/${{ env.INIT_LOG_FILE }}
-            generator/${{ env.PLAN_OUTPUT_FILE }}
-            generator/${{ env.PLAN_JSON_LOG_FILE }}
-            generator/${{ env.PLAN_RAW_LOG_FILE }}
-            vpc/${{ env.INIT_LOG_FILE }}
-            vpc/${{ env.PLAN_OUTPUT_FILE }}
-            vpc/${{ env.PLAN_JSON_LOG_FILE }}
-            vpc/${{ env.PLAN_RAW_LOG_FILE }}
-            **/${{ env.PLAN_FILE_NAME }}
-          retention-days: 1
-  terragrunt-apply:
-    runs-on: ubuntu-latest
-    needs: terragrunt-plan
-    
-    env:
-      WORKSPACE: ${{ github.repository}}
       APPLY_LOG_FILE: "apply_log.jsonl"
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+            fetch-depth: 0
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_version: ${{ inputs.terraform_version }}
           terraform_wrapper: false
 
       - name: Setup Terragrunt
         run: |
-          sudo wget -q -O /usr/local/bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64
+          sudo wget -q -O /usr/local/bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v${{ inputs.terragrunt_version }}/terragrunt_linux_amd64
           sudo chmod +x /usr/local/bin/terragrunt
           terragrunt --version
 
       - name: Setup IAC Wrapper
-        uses: gofireflyio/fireflyci/terragrunt@v0.5.154
+        uses: gofireflyio/fireflyci/terragrunt@v0.5.153
+
+      - name: Initialize Terragrunt
+        run: terragrunt run-all init
+
+      - name: Terragrunt Plan
+        id: plan
+        run: terragrunt run-all plan -- -json -out=${{ env.PLAN_FILE_NAME }}
+          
+      - name: Firefly Post Plan - Database
+        uses: gofireflyio/fireflyci@v0.5.153
+        with:
+          command: post-plan
+          environment: database
+          workspace: ${{ env.WORKSPACE }}
+          terragrunt-version: ${{ inputs.terragrunt_version }}
+          init-log-file: database/${{ env.INIT_LOG_FILE }}
+          plan-output-file: database/${{ env.PLAN_OUTPUT_FILE }}
+          plan-json-log-file: database/${{ env.PLAN_JSON_LOG_FILE }}
+          plan-raw-log-file: database/${{ env.PLAN_RAW_LOG_FILE }}
+        # env:
+        #   FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
+        #   FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
+
+      - name: Firefly Post Plan - Generator
+        uses: gofireflyio/fireflyci@v0.5.154
+        with:
+          command: post-plan
+          environment: generator
+          terragrunt-version: ${{ inputs.TERRAGRUNT_VERSION }}
+          workspace: ${{ env.WORKSPACE }}
+          init-log-file: generator/${{ env.INIT_LOG_FILE }}
+          plan-output-file: generator/${{ env.PLAN_OUTPUT_FILE }}
+          plan-json-log-file: generator/${{ env.PLAN_JSON_LOG_FILE }}
+          plan-raw-log-file: generator/${{ env.PLAN_RAW_LOG_FILE }}
+        # env:
+        #   FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
+        #   FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
+
+      - name: Firefly Post Plan - VPC
+        uses: gofireflyio/fireflyci@v0.5.154
+        with:
+          command: post-plan
+          environment: vpc
+          terragrunt-version: ${{ inputs.terragrunt_version }}
+          workspace: ${{ env.WORKSPACE }}
+          init-log-file: vpc/${{ env.INIT_LOG_FILE }}
+          plan-output-file: vpc/${{ env.PLAN_OUTPUT_FILE }}
+          plan-json-log-file: vpc/${{ env.PLAN_JSON_LOG_FILE }}
+          plan-raw-log-file: vpc/${{ env.PLAN_RAW_LOG_FILE }}
+        # env:
+        #   FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
+        #   FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
       - name: Terragrunt Apply
-        run: |
-          terragrunt run-all apply --terragrunt-non-interactive -- -auto-approve -json
-          
+        if: inputs.should_apply == true && steps.plan.outcome == 'success'
+        run: terragrunt run-all apply --terragrunt-non-interactive -- -auto-approve -json
+
       - name: Firefly Post Plan - Database
         uses: gofireflyio/fireflyci@v0.5.154
         with:
           command: post-apply
           environment: database
           workspace: ${{ env.WORKSPACE }}
-          terragrunt-version: ${{ env.TERRAGRUNT_VERSION }}
+          terragrunt-version: ${{ inputs.terragrunt_version }}
           apply-log-file: database/${{ env.APPLY_LOG_FILE }}
 
-        env:
-          FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
-          FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
+        # env:
+        #   FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
+        #   FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
       - name: Firefly Post Plan - Generator
         uses: gofireflyio/fireflyci@v0.5.154
         with:
           command: post-apply
           environment: generator
-          terragrunt-version: ${{ env.TERRAGRUNT_VERSION }}
+          terragrunt-version: ${{ inputs.terragrunt_version }}
           workspace: ${{ env.WORKSPACE }}
           apply-log-file: generator/${{ env.APPLY_LOG_FILE }}
-        env:
-          FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
-          FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
+        # env:
+        #   FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
+        #   FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
       - name: Firefly Post Plan - VPC
         uses: gofireflyio/fireflyci@v0.5.154
         with:
           command: post-apply
           environment: vpc
-          terragrunt-version: ${{ env.TERRAGRUNT_VERSION }}
+          terragrunt-version: ${{ inputs.terragrunt_version }}
           workspace: ${{ env.WORKSPACE }}
           apply-log-file: vpc/${{ env.APPLY_LOG_FILE }}
-        env:
-          FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
-          FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
-
-      - name: Upload Terragrunt Apply Logs
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: terragrunt-apply-logs
-          path: |
-            database/${{ env.APPLY_LOG_FILE }}
-            generator/${{ env.APPLY_LOG_FILE }}
-            vpc/${{ env.APPLY_LOG_FILE }}
-          retention-days: 1
+        # env:
+        #   FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
+        #   FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
