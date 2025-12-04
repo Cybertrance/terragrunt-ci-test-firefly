@@ -39,7 +39,7 @@ jobs:
           terragrunt --version
 
       - name: Setup IAC Wrapper
-        uses: gofireflyio/fireflyci/terragrunt@infl-16195-terragrunt-wrapper
+        uses: gofireflyio/fireflyci/terragrunt@v0.5.154
 
       - name: Terragrunt Init and Plan
         run: |
@@ -47,7 +47,7 @@ jobs:
           terragrunt run-all plan -- -json -out=${{ env.PLAN_FILE_NAME }}
 
       - name: Firefly Post Plan - Database
-        uses: gofireflyio/fireflyci@infl-16195-terragrunt-wrapper
+        uses: gofireflyio/fireflyci@v0.5.154
         with:
           command: post-plan
           environment: database
@@ -63,7 +63,7 @@ jobs:
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
       - name: Firefly Post Plan - Generator
-        uses: gofireflyio/fireflyci@infl-16195-terragrunt-wrapper
+        uses: gofireflyio/fireflyci@v0.5.154
         with:
           command: post-plan
           environment: generator
@@ -78,7 +78,7 @@ jobs:
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
       - name: Firefly Post Plan - VPC
-        uses: gofireflyio/fireflyci@infl-16195-terragrunt-wrapper
+        uses: gofireflyio/fireflyci@v0.5.154
         with:
           command: post-plan
           environment: vpc
@@ -91,6 +91,27 @@ jobs:
         env:
           FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
+
+      - name: Upload Terragrunt Plan Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: terragrunt-plan-logs
+          path: |
+            database/${{ env.INIT_LOG_FILE }}
+            database/${{ env.PLAN_OUTPUT_FILE }}
+            database/${{ env.PLAN_JSON_LOG_FILE }}
+            database/${{ env.PLAN_RAW_LOG_FILE }}
+            generator/${{ env.INIT_LOG_FILE }}
+            generator/${{ env.PLAN_OUTPUT_FILE }}
+            generator/${{ env.PLAN_JSON_LOG_FILE }}
+            generator/${{ env.PLAN_RAW_LOG_FILE }}
+            vpc/${{ env.INIT_LOG_FILE }}
+            vpc/${{ env.PLAN_OUTPUT_FILE }}
+            vpc/${{ env.PLAN_JSON_LOG_FILE }}
+            vpc/${{ env.PLAN_RAW_LOG_FILE }}
+            **/${{ env.PLAN_FILE_NAME }}
+          retention-days: 1
   terragrunt-apply:
     runs-on: ubuntu-latest
     needs: terragrunt-plan
@@ -116,14 +137,14 @@ jobs:
           terragrunt --version
 
       - name: Setup IAC Wrapper
-        uses: gofireflyio/fireflyci/terragrunt@infl-16195-terragrunt-wrapper
+        uses: gofireflyio/fireflyci/terragrunt@v0.5.154
 
       - name: Terragrunt Apply
         run: |
           terragrunt run-all apply --terragrunt-non-interactive -- -auto-approve -json
           
       - name: Firefly Post Plan - Database
-        uses: gofireflyio/fireflyci@infl-16195-terragrunt-wrapper
+        uses: gofireflyio/fireflyci@v0.5.154
         with:
           command: post-apply
           environment: database
@@ -136,7 +157,7 @@ jobs:
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
       - name: Firefly Post Plan - Generator
-        uses: gofireflyio/fireflyci@infl-16195-terragrunt-wrapper
+        uses: gofireflyio/fireflyci@v0.5.154
         with:
           command: post-apply
           environment: generator
@@ -148,7 +169,7 @@ jobs:
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
       - name: Firefly Post Plan - VPC
-        uses: gofireflyio/fireflyci@infl-16195-terragrunt-wrapper
+        uses: gofireflyio/fireflyci@v0.5.154
         with:
           command: post-apply
           environment: vpc
@@ -158,3 +179,14 @@ jobs:
         env:
           FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
+
+      - name: Upload Terragrunt Apply Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: terragrunt-apply-logs
+          path: |
+            database/${{ env.APPLY_LOG_FILE }}
+            generator/${{ env.APPLY_LOG_FILE }}
+            vpc/${{ env.APPLY_LOG_FILE }}
+          retention-days: 1
