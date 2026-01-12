@@ -52,7 +52,7 @@ jobs:
           terragrunt --version
 
       - name: Setup IAC Wrapper
-        uses: gofireflyio/fireflyci/terragrunt@v0.6.1
+        uses: gofireflyio/fireflyci/terragrunt@infl-16943-forwrd-term-sigs
 
       - name: Initialize Terragrunt
         run: terragrunt run-all init
