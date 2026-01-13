@@ -3,15 +3,20 @@ variable "vpc_id" {
   default = "vpc-mock-1"
 }
 
+resource "time_sleep" "database_delay" {
+  create_duration = "120s"
+  
+  triggers = {
+    db_id = "db-test-${timestamp()}"
+  }
+}
+
 resource "null_resource" "database" {
   triggers = {
     db_id      = "db-test-${timestamp()}"
     vpc_id     = var.vpc_id
     db_engine  = "postgres"
-  }
-
-  provisioner "local-exec" {
-    command = "sleep 120"
+    delay      = time_sleep.database_delay.id
   }
 }
 
