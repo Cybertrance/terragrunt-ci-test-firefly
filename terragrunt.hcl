@@ -8,7 +8,7 @@ locals {
   # Configure your S3 bucket name for Terraform state storage
   state_bucket = "dm-terraform-state-test"
   # Configure your DynamoDB table name for state locking
-  lock_table = "dm-terraform-locks"
+  lock_table = "terraform-state-lock"
 }
 
 # Configure Terragrunt to automatically store tfstate files in an S3 bucket
