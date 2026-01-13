@@ -5,20 +5,30 @@ skip = true
 locals {
   environment = "test"
   aws_region  = "us-east-1"
+  # Configure your S3 bucket name for Terraform state storage
+  state_bucket = "dm-terraform-state-test"
+  # Configure your DynamoDB table name for state locking
+  lock_table = "dm-terraform-locks"
 }
 
 # Configure Terragrunt to automatically store tfstate files in an S3 bucket
-# Uncomment and configure if you want to use remote state
-# remote_state {
-#   backend = "s3"
-#   config = {
-#     bucket         = "your-terraform-state-bucket"
-#     key            = "terragrunt/${path_relative_to_include()}/terraform.tfstate"
-#     region         = "us-east-1"
-#     encrypt        = true
-#     dynamodb_table = "terraform-locks"
-#   }
-# }
+remote_state {
+  backend = "s3"
+  config = {
+    bucket         = local.state_bucket
+    key            = "terragrunt/${path_relative_to_include()}/terraform.tfstate"
+    region         = local.aws_region
+    encrypt        = true
+    dynamodb_table = local.lock_table
+    # Note: DynamoDB locks persist until manually released with 'terraform force-unlock'
+    # If a CI run is killed, the lock remains and subsequent runs will detect it
+  }
+  
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+}
 
 # Generate provider configuration
 generate "provider" {

@@ -9,6 +9,10 @@ resource "null_resource" "database" {
     vpc_id     = var.vpc_id
     db_engine  = "postgres"
   }
+
+  provisioner "local-exec" {
+    command = "sleep 120"
+  }
 }
 
 output "db_id" {
