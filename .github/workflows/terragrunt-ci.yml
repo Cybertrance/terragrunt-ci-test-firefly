@@ -78,7 +78,7 @@ jobs:
           aws s3 ls s3://dm-terraform-state-test/ || echo "S3 bucket access failed - check permissions"
 
       - name: Initialize Terragrunt
-        run: terragrunt run-all init --terragrunt-non-interactive
+        run: terragrunt run-all init
 
       - name: Terragrunt Plan
         id: plan
