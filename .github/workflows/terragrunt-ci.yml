@@ -47,7 +47,7 @@ jobs:
     steps:
       - name: Setup Signal Monitoring
         run: |
-          SIGNAL_LOG="/tmp/signal_debug_$$.log"
+          SIGNAL_LOG="/tmp/termination_signals_$$.log"
           echo "Signal monitoring started at $(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$SIGNAL_LOG"
           echo "PID: $$" >> "$SIGNAL_LOG"
           echo "PPID: $PPID" >> "$SIGNAL_LOG"
@@ -138,11 +138,43 @@ jobs:
           aws s3 ls s3://dm-terraform-state-test/ || echo "S3 bucket access failed - check permissions"
 
       - name: Initialize Terragrunt
-        run: terragrunt run-all init --terragrunt-non-interactive
+        run: |
+          LOG=/tmp/termination_signals_init.log
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Starting terragrunt init (shell PID: $$)" >> $LOG
+          
+          # Trap signals - these fire when shell receives signal during 'wait'
+          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] INIT received SIGHUP" >> $LOG' HUP
+          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] INIT received SIGINT" >> $LOG; kill $PID 2>/dev/null; exit 130' INT
+          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] INIT received SIGTERM" >> $LOG; kill $PID 2>/dev/null; exit 143' TERM
+          
+          # Run in background so shell can receive signals
+          terragrunt run-all init --terragrunt-non-interactive &
+          PID=$!
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt init PID: $PID" >> $LOG
+          wait $PID
+          EXIT_CODE=$?
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt init completed with exit code: $EXIT_CODE" >> $LOG
+          exit $EXIT_CODE
 
       - name: Terragrunt Plan
         id: plan
-        run: terragrunt run-all plan -- -json -out=${{ env.PLAN_FILE_NAME }}
+        run: |
+          LOG=/tmp/termination_signals_plan.log
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Starting terragrunt plan (shell PID: $$)" >> $LOG
+          
+          # Trap signals - these fire when shell receives signal during 'wait'
+          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] PLAN received SIGHUP" >> $LOG' HUP
+          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] PLAN received SIGINT" >> $LOG; kill $PID 2>/dev/null; exit 130' INT
+          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] PLAN received SIGTERM" >> $LOG; kill $PID 2>/dev/null; exit 143' TERM
+          
+          # Run in background so shell can receive signals
+          terragrunt run-all plan -- -json -out=${{ env.PLAN_FILE_NAME }} &
+          PID=$!
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt plan PID: $PID" >> $LOG
+          wait $PID
+          EXIT_CODE=$?
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt plan completed with exit code: $EXIT_CODE" >> $LOG
+          exit $EXIT_CODE
           
       - name: Firefly Post Plan - Database
         uses: gofireflyio/fireflyci@v0.6.1
@@ -192,7 +224,23 @@ jobs:
       - name: Terragrunt Apply
         id: apply
         if: inputs.should_apply == true && steps.plan.outcome == 'success'
-        run: terragrunt run-all apply --terragrunt-non-interactive -- -auto-approve -json
+        run: |
+          LOG=/tmp/termination_signals_apply.log
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Starting terragrunt apply (shell PID: $$)" >> $LOG
+          
+          # Trap signals - these fire when shell receives signal during 'wait'
+          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] APPLY received SIGHUP" >> $LOG' HUP
+          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] APPLY received SIGINT" >> $LOG; kill $PID 2>/dev/null; exit 130' INT
+          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] APPLY received SIGTERM" >> $LOG; kill $PID 2>/dev/null; exit 143' TERM
+          
+          # Run in background so shell can receive signals
+          terragrunt run-all apply --terragrunt-non-interactive -- -auto-approve -json &
+          PID=$!
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt apply PID: $PID" >> $LOG
+          wait $PID
+          EXIT_CODE=$?
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt apply completed with exit code: $EXIT_CODE" >> $LOG
+          exit $EXIT_CODE
 
       - name: Firefly Post Apply - Database
         if: inputs.should_apply == true && steps.apply.outcome == 'success'
@@ -268,7 +316,7 @@ jobs:
           # List all signal debug logs
           echo ""
           echo "=== All Signal Debug Logs ==="
-          ls -la /tmp/signal_debug_*.log 2>/dev/null || echo "No signal debug logs found"
+          ls -la /tmp/termination_signals_*.log 2>/dev/null || echo "No signal debug logs found"
 
       # Upload debug logs as artifact - runs even on cancellation/failure
       # This must run ASAP on job end to capture logs before runner termination
@@ -279,7 +327,7 @@ jobs:
           name: debug-logs-${{ github.run_id }}
           path: |
             /tmp/terraform_debug.log
-            /tmp/signal_debug_*.log
+            /tmp/termination_signals_*.log
           if-no-files-found: warn
           retention-days: 7
 
@@ -326,7 +374,7 @@ jobs:
           echo ""
           
           # Process Signal debug logs
-          for log in ./debug-logs/signal_debug_*.log; do
+          for log in ./debug-logs/termination_signals_*.log; do
             if [ -f "$log" ]; then
               echo "=== Signal Debug Log: $(basename "$log") ==="
               echo "Log file size: $(wc -c < "$log") bytes"
@@ -338,7 +386,7 @@ jobs:
             fi
           done
           
-          if ! ls ./debug-logs/signal_debug_*.log 1>/dev/null 2>&1; then
+          if ! ls ./debug-logs/termination_signals_*.log 1>/dev/null 2>&1; then
             echo "No signal debug logs found"
           fi
 
