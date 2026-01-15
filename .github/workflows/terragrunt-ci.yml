@@ -45,6 +45,57 @@ jobs:
       TF_LOG_PATH: /tmp/terraform_debug.log
     
     steps:
+      - name: Setup Signal Monitoring
+        run: |
+          SIGNAL_LOG="/tmp/signal_debug_$$.log"
+          echo "Signal monitoring started at $(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$SIGNAL_LOG"
+          echo "PID: $$" >> "$SIGNAL_LOG"
+          echo "PPID: $PPID" >> "$SIGNAL_LOG"
+          echo "---" >> "$SIGNAL_LOG"
+          
+          # Create a script that monitors for signals
+          cat > /tmp/signal_monitor.sh << 'MONITOR_EOF'
+          #!/bin/bash
+          LOG_FILE="$1"
+          
+          log_signal() {
+            local sig="$1"
+            echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Received signal: $sig ($$)" >> "$LOG_FILE"
+          }
+          
+          # Trap all common signals
+          trap 'log_signal SIGHUP' HUP
+          trap 'log_signal SIGINT' INT
+          trap 'log_signal SIGQUIT' QUIT
+          trap 'log_signal SIGTERM' TERM
+          trap 'log_signal SIGUSR1' USR1
+          trap 'log_signal SIGUSR2' USR2
+          trap 'log_signal SIGPIPE' PIPE
+          trap 'log_signal SIGALRM' ALRM
+          trap 'log_signal SIGCONT' CONT
+          
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Signal monitor started (PID: $$)" >> "$LOG_FILE"
+          
+          # Keep running and log heartbeat every 30 seconds
+          while true; do
+            sleep 30
+            echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Heartbeat - still monitoring" >> "$LOG_FILE"
+          done
+          MONITOR_EOF
+          
+          chmod +x /tmp/signal_monitor.sh
+          
+          # Start the signal monitor in background
+          nohup /tmp/signal_monitor.sh "$SIGNAL_LOG" &
+          MONITOR_PID=$!
+          echo "Signal monitor PID: $MONITOR_PID" >> "$SIGNAL_LOG"
+          
+          # Save the log file path for later steps
+          echo "SIGNAL_LOG=$SIGNAL_LOG" >> "$GITHUB_ENV"
+          echo "SIGNAL_MONITOR_PID=$MONITOR_PID" >> "$GITHUB_ENV"
+          
+          echo "Signal monitoring initialized. Log file: $SIGNAL_LOG"
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -181,6 +232,43 @@ jobs:
         env:
           FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
+
+      # Capture final signal state before upload
+      - name: Capture Final Signal State
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          echo "=== Final Signal State Capture ===" 
+          echo "Job status: $JOB_STATUS"
+          echo ""
+          
+          # Log to signal file
+          if [ -n "$SIGNAL_LOG" ] && [ -f "$SIGNAL_LOG" ]; then
+            echo "---" >> "$SIGNAL_LOG"
+            echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Job ending - final capture" >> "$SIGNAL_LOG"
+            echo "Job status: $JOB_STATUS" >> "$SIGNAL_LOG"
+            echo "" >> "$SIGNAL_LOG"
+            
+            # Check if monitor is still running
+            if [ -n "$SIGNAL_MONITOR_PID" ]; then
+              if kill -0 "$SIGNAL_MONITOR_PID" 2>/dev/null; then
+                echo "Signal monitor (PID $SIGNAL_MONITOR_PID) is still running" >> "$SIGNAL_LOG"
+              else
+                echo "Signal monitor (PID $SIGNAL_MONITOR_PID) has stopped" >> "$SIGNAL_LOG"
+              fi
+            fi
+            
+            echo "=== Signal Log Contents ==="
+            cat "$SIGNAL_LOG"
+          else
+            echo "No signal log file found at: $SIGNAL_LOG"
+          fi
+          
+          # List all signal debug logs
+          echo ""
+          echo "=== All Signal Debug Logs ==="
+          ls -la /tmp/signal_debug_*.log 2>/dev/null || echo "No signal debug logs found"
 
       # Upload debug logs as artifact - runs even on cancellation/failure
       # This must run ASAP on job end to capture logs before runner termination
