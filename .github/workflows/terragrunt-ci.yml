@@ -182,14 +182,16 @@ jobs:
           FIREFLY_ACCESS_KEY: ${{ secrets.FIREFLY_ACCESS_KEY }}
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
-      # Upload terraform debug log as artifact - runs even on cancellation/failure
+      # Upload debug logs as artifact - runs even on cancellation/failure
       # This must run ASAP on job end to capture logs before runner termination
-      - name: Upload Terraform Debug Log
+      - name: Upload Debug Logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-debug-log-${{ github.run_id }}
-          path: /tmp/terraform_debug.log
+          name: debug-logs-${{ github.run_id }}
+          path: |
+            /tmp/terraform_debug.log
+            /tmp/signal_debug_*.log
           if-no-files-found: warn
           retention-days: 7
 
@@ -201,10 +203,10 @@ jobs:
     if: always()
     
     steps:
-      - name: Download Terraform Debug Log
+      - name: Download Debug Logs
         uses: actions/download-artifact@v4
         with:
-          name: terraform-debug-log-${{ github.run_id }}
+          name: debug-logs-${{ github.run_id }}
           path: ./debug-logs
         continue-on-error: true
 
@@ -214,25 +216,46 @@ jobs:
           echo "Workflow run ID: ${{ github.run_id }}"
           echo "Triggered by: ${{ github.event_name }}"
           
-      - name: Process Debug Log
+      - name: Process Debug Logs
         if: always()
         run: |
+          echo "=== Available Debug Logs ==="
+          ls -la ./debug-logs/ 2>/dev/null || echo "No debug-logs directory found"
+          echo ""
+          
+          # Process Terraform debug log
           if [ -f ./debug-logs/terraform_debug.log ]; then
             echo "=== Terraform Debug Log Summary ==="
             echo "Log file size: $(wc -c < ./debug-logs/terraform_debug.log) bytes"
             echo "Log file lines: $(wc -l < ./debug-logs/terraform_debug.log)"
             echo ""
-            echo "=== Last 100 lines of debug log ==="
+            echo "=== Last 100 lines of terraform debug log ==="
             tail -100 ./debug-logs/terraform_debug.log
           else
-            echo "No debug log file found - this may indicate:"
-            echo "  - The main job was cancelled before terraform ran"
-            echo "  - Terraform completed without writing debug logs"
-            echo "  - The artifact upload step didn't complete in time"
+            echo "No terraform debug log file found"
+          fi
+          
+          echo ""
+          
+          # Process Signal debug logs
+          for log in ./debug-logs/signal_debug_*.log; do
+            if [ -f "$log" ]; then
+              echo "=== Signal Debug Log: $(basename "$log") ==="
+              echo "Log file size: $(wc -c < "$log") bytes"
+              echo "Log file lines: $(wc -l < "$log")"
+              echo ""
+              echo "=== Contents ==="
+              cat "$log"
+              echo ""
+            fi
+          done
+          
+          if ! ls ./debug-logs/signal_debug_*.log 1>/dev/null 2>&1; then
+            echo "No signal debug logs found"
           fi
 
       - name: Report Cancellation
         if: cancelled() || needs.terragrunt-plan.result == 'cancelled'
         run: |
           echo "::warning::Workflow was cancelled. Debug logs may be incomplete."
-          echo "Check the terraform-debug-log artifact for any captured logs."
+          echo "Check the debug-logs artifact for any captured logs."
