@@ -50,57 +50,6 @@ jobs:
       SIGNAL_CHAIN_LOG: /tmp/signal_chain.log
     
     steps:
-      - name: Setup Signal Monitoring
-        run: |
-          SIGNAL_LOG="/tmp/termination_signals_$$.log"
-          echo "Signal monitoring started at $(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$SIGNAL_LOG"
-          echo "PID: $$" >> "$SIGNAL_LOG"
-          echo "PPID: $PPID" >> "$SIGNAL_LOG"
-          echo "---" >> "$SIGNAL_LOG"
-          
-          # Create a script that monitors for signals
-          cat > /tmp/signal_monitor.sh << 'MONITOR_EOF'
-          #!/bin/bash
-          LOG_FILE="$1"
-          
-          log_signal() {
-            local sig="$1"
-            echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Received signal: $sig ($$)" >> "$LOG_FILE"
-          }
-          
-          # Trap all common signals
-          trap 'log_signal SIGHUP' HUP
-          trap 'log_signal SIGINT' INT
-          trap 'log_signal SIGQUIT' QUIT
-          trap 'log_signal SIGTERM' TERM
-          trap 'log_signal SIGUSR1' USR1
-          trap 'log_signal SIGUSR2' USR2
-          trap 'log_signal SIGPIPE' PIPE
-          trap 'log_signal SIGALRM' ALRM
-          trap 'log_signal SIGCONT' CONT
-          
-          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Signal monitor started (PID: $$)" >> "$LOG_FILE"
-          
-          # Keep running and log heartbeat every 30 seconds
-          while true; do
-            sleep 30
-            echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Heartbeat - still monitoring" >> "$LOG_FILE"
-          done
-          MONITOR_EOF
-          
-          chmod +x /tmp/signal_monitor.sh
-          
-          # Start the signal monitor in background
-          nohup /tmp/signal_monitor.sh "$SIGNAL_LOG" &
-          MONITOR_PID=$!
-          echo "Signal monitor PID: $MONITOR_PID" >> "$SIGNAL_LOG"
-          
-          # Save the log file path for later steps
-          echo "SIGNAL_LOG=$SIGNAL_LOG" >> "$GITHUB_ENV"
-          echo "SIGNAL_MONITOR_PID=$MONITOR_PID" >> "$GITHUB_ENV"
-          
-          echo "Signal monitoring initialized. Log file: $SIGNAL_LOG"
-
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -144,55 +93,50 @@ jobs:
 
       - name: Initialize Terragrunt
         run: |
-          LOG=/tmp/termination_signals_init.log
-          CHAIN_LOG=${{ env.SIGNAL_CHAIN_LOG }}
+          LOG=${{ env.SIGNAL_CHAIN_LOG }}
           
-          echo "========================================" >> $CHAIN_LOG
-          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] TERRAGRUNT INIT - Signal Chain Tracing" >> $CHAIN_LOG
-          echo "========================================" >> $CHAIN_LOG
-          echo "Shell PID: $$, Parent PID: $PPID" >> $CHAIN_LOG
+          echo "========================================" >> $LOG
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] TERRAGRUNT INIT - Signal Chain Tracing" >> $LOG
+          echo "========================================" >> $LOG
+          echo "Shell PID: $$, Parent PID: $PPID" >> $LOG
           
           # Trap signals with logging and forwarding
-          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] INIT Shell $$ received SIGHUP" >> $CHAIN_LOG' HUP
-          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] INIT Shell $$ received SIGINT, forwarding to $TG_PID" >> $CHAIN_LOG; echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] INIT received SIGINT" >> $LOG; kill -INT $TG_PID 2>/dev/null; exit 130' INT
-          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] INIT Shell $$ received SIGTERM, forwarding to $TG_PID" >> $CHAIN_LOG; echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] INIT received SIGTERM" >> $LOG; kill -TERM $TG_PID 2>/dev/null; exit 143' TERM
+          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] INIT Shell $$ received SIGHUP" >> $LOG' HUP
+          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] INIT Shell $$ received SIGINT, forwarding to Terragrunt PID $TG_PID" >> $LOG; kill -INT $TG_PID 2>/dev/null; exit 130' INT
+          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] INIT Shell $$ received SIGTERM, forwarding to Terragrunt PID $TG_PID" >> $LOG; kill -TERM $TG_PID 2>/dev/null; exit 143' TERM
           
           echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Starting terragrunt init" >> $LOG
           terragrunt run-all init --terragrunt-non-interactive &
           TG_PID=$!
           echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt init PID: $TG_PID" >> $LOG
-          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt init PID: $TG_PID" >> $CHAIN_LOG
           
           wait $TG_PID
           EXIT_CODE=$?
           echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt init completed with exit code: $EXIT_CODE" >> $LOG
-          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt init completed with exit code: $EXIT_CODE" >> $CHAIN_LOG
-          echo "" >> $CHAIN_LOG
+          echo "" >> $LOG
           exit $EXIT_CODE
 
       - name: Terragrunt Plan
         id: plan
         run: |
-          LOG=/tmp/termination_signals_plan.log
-          CHAIN_LOG=${{ env.SIGNAL_CHAIN_LOG }}
+          LOG=${{ env.SIGNAL_CHAIN_LOG }}
           
-          echo "========================================" >> $CHAIN_LOG
-          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] TERRAGRUNT PLAN - Signal Chain Tracing" >> $CHAIN_LOG
-          echo "========================================" >> $CHAIN_LOG
-          echo "Shell PID: $$" >> $CHAIN_LOG
-          echo "Parent PID: $PPID" >> $CHAIN_LOG
-          echo "" >> $CHAIN_LOG
+          echo "========================================" >> $LOG
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] TERRAGRUNT PLAN - Signal Chain Tracing" >> $LOG
+          echo "========================================" >> $LOG
+          echo "Shell PID: $$" >> $LOG
+          echo "Parent PID: $PPID" >> $LOG
+          echo "" >> $LOG
           
           # Function to log signal with process tree
           log_signal() {
             local sig=$1
             local timestamp=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)
-            echo "[$timestamp] ===== SIGNAL RECEIVED: $sig =====" >> $CHAIN_LOG
+            echo "[$timestamp] ===== SIGNAL RECEIVED: $sig =====" >> $LOG
             echo "[$timestamp] Shell PID $$ received $sig" >> $LOG
-            echo "[$timestamp] Shell PID $$ received $sig" >> $CHAIN_LOG
-            echo "[$timestamp] Process tree at signal receipt:" >> $CHAIN_LOG
-            ps -ef --forest 2>/dev/null | grep -E "(terragrunt|terraform|$$)" >> $CHAIN_LOG || ps auxf >> $CHAIN_LOG 2>/dev/null || ps aux >> $CHAIN_LOG
-            echo "" >> $CHAIN_LOG
+            echo "[$timestamp] Process tree at signal receipt:" >> $LOG
+            ps -ef --forest 2>/dev/null | grep -E "(terragrunt|terraform|$$)" >> $LOG || ps auxf >> $LOG 2>/dev/null || ps aux >> $LOG
+            echo "" >> $LOG
           }
           
           # Function to forward signal to child and log
@@ -200,12 +144,11 @@ jobs:
             local sig=$1
             local timestamp=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)
             if [ -n "$TG_PID" ] && kill -0 $TG_PID 2>/dev/null; then
-              echo "[$timestamp] Forwarding $sig to Terragrunt PID $TG_PID" >> $CHAIN_LOG
               echo "[$timestamp] Forwarding $sig to Terragrunt PID $TG_PID" >> $LOG
               kill -s $sig $TG_PID 2>/dev/null
-              echo "[$timestamp] Signal forwarded, waiting for process to exit..." >> $CHAIN_LOG
+              echo "[$timestamp] Signal forwarded to Terragrunt, waiting for exit..." >> $LOG
             else
-              echo "[$timestamp] Terragrunt PID $TG_PID not running, cannot forward $sig" >> $CHAIN_LOG
+              echo "[$timestamp] Terragrunt PID $TG_PID not running, cannot forward $sig" >> $LOG
             fi
           }
           
@@ -215,35 +158,32 @@ jobs:
           trap 'log_signal SIGTERM; forward_signal TERM; exit 143' TERM
           
           echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Starting terragrunt plan" >> $LOG
-          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Starting terragrunt plan" >> $CHAIN_LOG
           
           # Run in background so shell can receive signals
           terragrunt run-all plan -- -json -out=${{ env.PLAN_FILE_NAME }} &
           TG_PID=$!
           
           echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt PID: $TG_PID" >> $LOG
-          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt PID: $TG_PID" >> $CHAIN_LOG
           
           # Log initial process tree
-          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Initial process tree:" >> $CHAIN_LOG
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Initial process tree:" >> $LOG
           sleep 2  # Give terragrunt time to spawn children
-          ps -ef --forest 2>/dev/null | grep -E "(terragrunt|terraform|PID)" >> $CHAIN_LOG || ps auxf >> $CHAIN_LOG 2>/dev/null || ps aux >> $CHAIN_LOG
-          echo "" >> $CHAIN_LOG
+          ps -ef --forest 2>/dev/null | grep -E "(terragrunt|terraform|PID)" >> $LOG || ps auxf >> $LOG 2>/dev/null || ps aux >> $LOG
+          echo "" >> $LOG
           
           # Log child processes of terragrunt
-          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt child processes:" >> $CHAIN_LOG
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt child processes:" >> $LOG
           pgrep -P $TG_PID 2>/dev/null | while read child; do
-            echo "  Child PID: $child ($(ps -p $child -o comm= 2>/dev/null))" >> $CHAIN_LOG
+            echo "  Child PID: $child ($(ps -p $child -o comm= 2>/dev/null))" >> $LOG
           done
-          echo "" >> $CHAIN_LOG
+          echo "" >> $LOG
           
           wait $TG_PID
           EXIT_CODE=$?
           
           echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt plan completed with exit code: $EXIT_CODE" >> $LOG
-          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt plan completed with exit code: $EXIT_CODE" >> $CHAIN_LOG
-          echo "========================================" >> $CHAIN_LOG
-          echo "" >> $CHAIN_LOG
+          echo "========================================" >> $LOG
+          echo "" >> $LOG
           exit $EXIT_CODE
           
       - name: Firefly Post Plan - Database
@@ -295,35 +235,33 @@ jobs:
         id: apply
         if: inputs.should_apply == true && steps.plan.outcome == 'success'
         run: |
-          LOG=/tmp/termination_signals_apply.log
-          CHAIN_LOG=${{ env.SIGNAL_CHAIN_LOG }}
-          
-          echo "========================================" >> $CHAIN_LOG
-          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] TERRAGRUNT APPLY - Signal Chain Tracing" >> $CHAIN_LOG
-          echo "========================================" >> $CHAIN_LOG
-          echo "Shell PID: $$, Parent PID: $PPID" >> $CHAIN_LOG
-          
+          LOG=${{ env.SIGNAL_CHAIN_LOG }}
+
+          echo "========================================" >> $LOG
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] TERRAGRUNT APPLY - Signal Chain Tracing" >> $LOG
+          echo "========================================" >> $LOG
+          echo "Shell PID: $$, Parent PID: $PPID" >> $LOG
+
           # Trap signals with logging and forwarding
-          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] APPLY Shell $$ received SIGHUP" >> $CHAIN_LOG' HUP
-          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] APPLY Shell $$ received SIGINT, forwarding to $TG_PID" >> $CHAIN_LOG; echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] APPLY received SIGINT" >> $LOG; kill -INT $TG_PID 2>/dev/null; exit 130' INT
-          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] APPLY Shell $$ received SIGTERM, forwarding to $TG_PID" >> $CHAIN_LOG; echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] APPLY received SIGTERM" >> $LOG; kill -TERM $TG_PID 2>/dev/null; exit 143' TERM
-          
+          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] APPLY Shell $$ received SIGHUP" >> $LOG' HUP
+          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] APPLY Shell $$ received SIGINT, forwarding to Terragrunt PID $TG_PID" >> $LOG; kill -INT $TG_PID 2>/dev/null; exit 130' INT
+          trap 'echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] APPLY Shell $$ received SIGTERM, forwarding to Terragrunt PID $TG_PID" >> $LOG; kill -TERM $TG_PID 2>/dev/null; exit 143' TERM
+
           echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Starting terragrunt apply" >> $LOG
           terragrunt run-all apply --terragrunt-non-interactive -- -auto-approve -json &
           TG_PID=$!
           echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt apply PID: $TG_PID" >> $LOG
-          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt apply PID: $TG_PID" >> $CHAIN_LOG
-          
+
           # Log process tree after startup
           sleep 2
-          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Process tree:" >> $CHAIN_LOG
-          ps -ef --forest 2>/dev/null | grep -E "(terragrunt|terraform|PID)" >> $CHAIN_LOG || ps aux >> $CHAIN_LOG
-          
+          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Process tree:" >> $LOG
+          ps -ef --forest 2>/dev/null | grep -E "(terragrunt|terraform|PID)" >> $LOG || ps aux >> $LOG
+
           wait $TG_PID
           EXIT_CODE=$?
           echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt apply completed with exit code: $EXIT_CODE" >> $LOG
-          echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Terragrunt apply completed with exit code: $EXIT_CODE" >> $CHAIN_LOG
-          echo "" >> $CHAIN_LOG
+          echo "========================================" >> $LOG
+          echo "" >> $LOG
           exit $EXIT_CODE
 
       - name: Firefly Post Apply - Database
@@ -375,32 +313,19 @@ jobs:
           echo "Job status: $JOB_STATUS"
           echo ""
           
-          # Log to signal file
-          if [ -n "$SIGNAL_LOG" ] && [ -f "$SIGNAL_LOG" ]; then
-            echo "---" >> "$SIGNAL_LOG"
-            echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] Job ending - final capture" >> "$SIGNAL_LOG"
-            echo "Job status: $JOB_STATUS" >> "$SIGNAL_LOG"
-            echo "" >> "$SIGNAL_LOG"
+          # Append job status to signal chain log
+          CHAIN_LOG=${{ env.SIGNAL_CHAIN_LOG }}
+          if [ -f "$CHAIN_LOG" ]; then
+            echo "========================================" >> "$CHAIN_LOG"
+            echo "[$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)] JOB ENDING" >> "$CHAIN_LOG"
+            echo "Job status: $JOB_STATUS" >> "$CHAIN_LOG"
+            echo "========================================" >> "$CHAIN_LOG"
             
-            # Check if monitor is still running
-            if [ -n "$SIGNAL_MONITOR_PID" ]; then
-              if kill -0 "$SIGNAL_MONITOR_PID" 2>/dev/null; then
-                echo "Signal monitor (PID $SIGNAL_MONITOR_PID) is still running" >> "$SIGNAL_LOG"
-              else
-                echo "Signal monitor (PID $SIGNAL_MONITOR_PID) has stopped" >> "$SIGNAL_LOG"
-              fi
-            fi
-            
-            echo "=== Signal Log Contents ==="
-            cat "$SIGNAL_LOG"
+            echo "=== Signal Chain Log Contents ==="
+            cat "$CHAIN_LOG"
           else
-            echo "No signal log file found at: $SIGNAL_LOG"
+            echo "No signal chain log found at: $CHAIN_LOG"
           fi
-          
-          # List all signal debug logs
-          echo ""
-          echo "=== All Signal Debug Logs ==="
-          ls -la /tmp/termination_signals_*.log 2>/dev/null || echo "No signal debug logs found"
 
       # Upload debug logs as artifact - runs even on cancellation/failure
       # This must run ASAP on job end to capture logs before runner termination
@@ -411,8 +336,8 @@ jobs:
           name: debug-logs-${{ github.run_id }}
           path: |
             /tmp/terraform_debug.log
-            /tmp/termination_signals_*.log
             /tmp/signal_chain.log
+            /tmp/iac_wrapper_signals.log
           if-no-files-found: warn
           retention-days: 7
 
@@ -458,9 +383,9 @@ jobs:
           
           echo ""
           
-          # Process Signal Chain Log (most important for debugging)
+          # Process Signal Chain Log (GitHub Runner -> Terragrunt)
           if [ -f ./debug-logs/signal_chain.log ]; then
-            echo "=== SIGNAL CHAIN LOG (GitHub Runner -> Terragrunt -> Terraform) ==="
+            echo "=== SIGNAL CHAIN LOG (Shell -> Terragrunt) ==="
             echo "Log file size: $(wc -c < ./debug-logs/signal_chain.log) bytes"
             echo "Log file lines: $(wc -l < ./debug-logs/signal_chain.log)"
             echo ""
@@ -473,21 +398,17 @@ jobs:
           
           echo ""
           
-          # Process individual termination signal logs
-          for log in ./debug-logs/termination_signals_*.log; do
-            if [ -f "$log" ]; then
-              echo "=== Signal Log: $(basename "$log") ==="
-              echo "Log file size: $(wc -c < "$log") bytes"
-              echo "Log file lines: $(wc -l < "$log")"
-              echo ""
-              echo "=== Contents ==="
-              cat "$log"
-              echo ""
-            fi
-          done
-          
-          if ! ls ./debug-logs/termination_signals_*.log 1>/dev/null 2>&1; then
-            echo "No termination signal logs found"
+          # Process IAC Wrapper Signal Log (Terragrunt -> IAC Wrapper -> Terraform)
+          if [ -f ./debug-logs/iac_wrapper_signals.log ]; then
+            echo "=== IAC WRAPPER SIGNAL LOG (Terragrunt -> IAC Wrapper -> Terraform) ==="
+            echo "Log file size: $(wc -c < ./debug-logs/iac_wrapper_signals.log) bytes"
+            echo "Log file lines: $(wc -l < ./debug-logs/iac_wrapper_signals.log)"
+            echo ""
+            echo "=== Full Contents ==="
+            cat ./debug-logs/iac_wrapper_signals.log
+            echo ""
+          else
+            echo "No IAC wrapper signal log found - Terragrunt may not be forwarding signals to IAC wrapper"
           fi
 
       - name: Report Cancellation
