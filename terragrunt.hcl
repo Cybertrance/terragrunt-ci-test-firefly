@@ -7,8 +7,6 @@ locals {
   aws_region  = "us-east-1"
   # Configure your S3 bucket name for Terraform state storage
   state_bucket = "dm-terraform-state-test"
-  # Configure your DynamoDB table name for state locking
-  lock_table = "terraform-state-lock"
 }
 
 # Configure Terragrunt to automatically store tfstate files in an S3 bucket
@@ -19,7 +17,7 @@ remote_state {
     key            = "terragrunt/${path_relative_to_include()}/terraform.tfstate"
     region         = local.aws_region
     encrypt        = true
-    dynamodb_table = local.lock_table
+    use_lockfile   = true
     # Allow Terragrunt to manage bucket settings (use --terragrunt-non-interactive in CI)
     skip_bucket_versioning      = false
     skip_bucket_ssencryption    = false

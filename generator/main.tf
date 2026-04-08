@@ -1,9 +1,13 @@
-# main.tf
-terraform {
-  required_version = ">= 0.12"
+variable "vpc_id" {
+  type    = string
+  default = "vpc-mock-1"
 }
 
-# Generate a random string
+variable "environment" {
+  type    = string
+  default = "test"
+}
+
 resource "random_string" "example" {
   length  = 59
   special = true
@@ -12,19 +16,30 @@ resource "random_string" "example" {
   numeric = true
 }
 
-# Create a local file with the random string
-resource "local_file" "example" {
-  content  = "Generated random string: ${random_string.example.result}\nTimestamp: ${timestamp()}"
-  filename = "${path.module}/output4.txt"
+resource "aws_s3_bucket" "generated_output" {
+  bucket = "dm-generator-output-${var.environment}"
+
+  tags = {
+    Environment = var.environment
+  }
 }
 
-# Output the random string
+resource "aws_s3_object" "generated_file" {
+  bucket  = aws_s3_bucket.generated_output.id
+  key     = "output.txt"
+  content = "Generated random string: ${random_string.example.result}"
+
+  tags = {
+    Environment = var.environment
+  }
+}
+
 output "random_value" {
   value       = random_string.example.result
   description = "The generated random string"
 }
 
-output "file_path" {
-  value       = local_file.example.filename
-  description = "Path to the generated file"
+output "bucket_id" {
+  value       = aws_s3_bucket.generated_output.id
+  description = "The S3 bucket for generated output"
 }
