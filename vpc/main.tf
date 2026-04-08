@@ -24,9 +24,9 @@ resource "aws_ssm_parameter" "vpc_cidr" {
 }
 
 output "vpc_id" {
-  value = aws_ssm_parameter.vpc_id.value
+  value = nonsensitive(aws_ssm_parameter.vpc_id.value)
 }
 
 output "vpc_cidr" {
-  value = aws_ssm_parameter.vpc_cidr.value
+  value = nonsensitive(aws_ssm_parameter.vpc_cidr.value)
 }
