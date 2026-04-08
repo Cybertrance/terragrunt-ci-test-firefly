@@ -17,12 +17,6 @@ remote_state {
     key            = "terragrunt/${path_relative_to_include()}/terraform.tfstate"
     region         = local.aws_region
     encrypt        = true
-    use_lockfile   = true
-    # Allow Terragrunt to manage bucket settings (use --terragrunt-non-interactive in CI)
-    skip_bucket_versioning      = false
-    skip_bucket_ssencryption    = false
-    skip_bucket_root_access     = false
-    skip_bucket_enforced_tls    = false
   }
   
   generate = {
