@@ -80,7 +80,7 @@ jobs:
           fi
 
       - name: Setup IAC Wrapper
-        uses: gofireflyio/fireflyci/terragrunt@infl-16943-forwrd-term-sigs
+        uses: gofireflyio/fireflyci/terragrunt@v0.6.3
         with:
           install-terragrunt-wrapper: 'true' 
     
@@ -187,7 +187,7 @@ jobs:
           exit $EXIT_CODE
           
       - name: Firefly Post Plan - Database
-        uses: gofireflyio/fireflyci@sync-wrapper
+        uses: gofireflyio/fireflyci@v0.6.3
         with:
           command: post-plan
           environment: database
@@ -202,7 +202,7 @@ jobs:
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
       - name: Firefly Post Plan - Generator
-        uses: gofireflyio/fireflyci@sync-wrapper
+        uses: gofireflyio/fireflyci@v0.6.3
         with:
           command: post-plan
           environment: generator
@@ -217,7 +217,7 @@ jobs:
           FIREFLY_SECRET_KEY: ${{ secrets.FIREFLY_SECRET_KEY }}
 
       - name: Firefly Post Plan - VPC
-        uses: gofireflyio/fireflyci@sync-wrapper
+        uses: gofireflyio/fireflyci@v0.6.3
         with:
           command: post-plan
           environment: vpc
@@ -266,7 +266,7 @@ jobs:
 
       - name: Firefly Post Apply - Database
         if: inputs.should_apply == true && steps.apply.outcome == 'success'
-        uses: gofireflyio/fireflyci@sync-wrapper
+        uses: gofireflyio/fireflyci@v0.6.3
         with:
           command: post-apply
           environment: database
@@ -279,7 +279,7 @@ jobs:
 
       - name: Firefly Post Apply - Generator
         if: inputs.should_apply == true && steps.apply.outcome == 'success'
-        uses: gofireflyio/fireflyci@sync-wrapper
+        uses: gofireflyio/fireflyci@v0.6.3
         with:
           command: post-apply
           environment: generator
@@ -292,7 +292,7 @@ jobs:
 
       - name: Firefly Post Apply - VPC
         if: inputs.should_apply == true && steps.apply.outcome == 'success'
-        uses: gofireflyio/fireflyci@sync-wrapper
+        uses: gofireflyio/fireflyci@v0.6.3
         with:
           command: post-apply
           environment: vpc
